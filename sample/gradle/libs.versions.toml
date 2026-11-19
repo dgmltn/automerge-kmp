@@ -1,0 +1,46 @@
+[versions]
+kotlin = "2.4.20"
+agp = "9.4.1"
+automerge-kmp = "0.1.0"
+iroh-kmp = "0.2.1"
+ktfmt = "0.27.0"
+detekt = "1.23.8"
+# The last compose-rules release built for detekt 1.23; 0.6 and later need detekt 2.
+compose-rules = "0.4.28"
+composeMultiplatform = "1.12.0"
+# material3 is released on its own train, behind the rest of Compose Multiplatform.
+composeMaterial3 = "1.9.0"
+# JetBrains' lifecycle, which, unlike Google's, publishes for iOS and macOS.
+lifecycle = "2.11.0"
+activityCompose = "1.13.0"
+
+[libraries]
+automerge-kmp = { module = "com.dgmltn.automerge:automerge-kmp", version.ref = "automerge-kmp" }
+iroh-kmp = { module = "app.azula.iroh:iroh-kmp", version.ref = "iroh-kmp" }
+kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
+compose-rules-detekt = { module = "io.nlopez.compose.rules:detekt", version.ref = "compose-rules" }
+compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "composeMultiplatform" }
+compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "composeMultiplatform" }
+compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMultiplatform" }
+compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "composeMaterial3" }
+compose-ui-tooling-preview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "composeMultiplatform" }
+compose-ui-tooling = { module = "org.jetbrains.compose.ui:ui-tooling", version.ref = "composeMultiplatform" }
+compose-ui-test = { module = "org.jetbrains.compose.ui:ui-test", version.ref = "composeMultiplatform" }
+# The desktop's Skia runtime, one per host.
+compose-desktop-macos-arm64 = { module = "org.jetbrains.compose.desktop:desktop-jvm-macos-arm64", version.ref = "composeMultiplatform" }
+compose-desktop-macos-x64 = { module = "org.jetbrains.compose.desktop:desktop-jvm-macos-x64", version.ref = "composeMultiplatform" }
+compose-desktop-linux-x64 = { module = "org.jetbrains.compose.desktop:desktop-jvm-linux-x64", version.ref = "composeMultiplatform" }
+compose-desktop-linux-arm64 = { module = "org.jetbrains.compose.desktop:desktop-jvm-linux-arm64", version.ref = "composeMultiplatform" }
+compose-desktop-windows-x64 = { module = "org.jetbrains.compose.desktop:desktop-jvm-windows-x64", version.ref = "composeMultiplatform" }
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
+lifecycle-viewmodel = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycle" }
+lifecycle-viewmodel-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+
+[plugins]
+kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+kotlinCompose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
+androidApplication = { id = "com.android.application", version.ref = "agp" }
+androidKmpLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
+ktfmt = { id = "com.ncorti.ktfmt.gradle", version.ref = "ktfmt" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }

@@ -1,0 +1,15 @@
+# A composable is named like a type, and a screen's takes many parameters and lines.
+complexity:
+  LongMethod:
+    ignoreAnnotated: ['Composable']
+  LongParameterList:
+    ignoreAnnotated: ['Composable']
+naming:
+  FunctionNaming:
+    ignoreAnnotated: ['Composable']
+style:
+  # Previews are called by the IDE, not by code.
+  UnusedPrivateMember:
+    ignoreAnnotated: ['Preview']
+  MagicNumber:
+    ignoreAnnotated: ['Preview']

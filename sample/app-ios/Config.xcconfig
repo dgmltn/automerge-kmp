@@ -1,0 +1,3 @@
+// Signing for a device only: put `DEVELOPMENT_TEAM = <your team id>` in Local.xcconfig beside this
+// file. Local.xcconfig is gitignored; the Simulator needs no team.
+#include? "Local.xcconfig"

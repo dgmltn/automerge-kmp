@@ -1,0 +1,58 @@
+# Generates TwoPads.xcodeproj (gitignored): `xcodegen generate` in this folder.
+name: TwoPads
+options:
+  bundleIdPrefix: com.dgmltn.automerge.sample
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+configFiles:
+  Debug: Config.xcconfig
+  Release: Config.xcconfig
+settings:
+  base:
+    # The Kotlin framework task writes outside the sandbox Xcode gives build scripts.
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+targets:
+  TwoPads:
+    type: application
+    platform: iOS
+    sources:
+      - iosApp
+    settings:
+      base:
+        INFOPLIST_FILE: iosApp/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.dgmltn.automerge.sample.ios
+        PRODUCT_MODULE_NAME: TwoPads
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        OTHER_LDFLAGS: ["$(inherited)", "-framework", "TwoPadsUI"]
+        DEAD_CODE_STRIPPING: YES
+    preBuildScripts:
+      - name: Kotlin framework
+        basedOnDependencyAnalysis: false
+        script: |
+          set -e
+          cd "$SRCROOT/.."
+          ./gradlew :shared-ui:embedAndSignAppleFrameworkForXcode
+  TwoPadsUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - TwoPadsUITests
+    dependencies:
+      - target: TwoPads
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dgmltn.automerge.sample.ios.uitests
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: TwoPads
+schemes:
+  TwoPads:
+    build:
+      targets:
+        TwoPads: all
+    test:
+      targets:
+        - TwoPadsUITests

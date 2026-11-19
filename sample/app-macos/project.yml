@@ -1,0 +1,60 @@
+# Generates TwoPads.xcodeproj (gitignored): `xcodegen generate` in this folder.
+name: TwoPads
+options:
+  bundleIdPrefix: com.dgmltn.automerge.sample
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    # The Kotlin framework task writes outside the sandbox Xcode gives build scripts.
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    # The Kotlin framework is built for Apple silicon only, so a Release build can't be universal.
+    ARCHS: arm64
+targets:
+  TwoPads:
+    type: application
+    platform: macOS
+    sources:
+      - TwoPads
+    settings:
+      base:
+        INFOPLIST_FILE: TwoPads/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.dgmltn.automerge.sample.mac
+        PRODUCT_MODULE_NAME: TwoPads
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_HARDENED_RUNTIME: NO
+        OTHER_LDFLAGS: ["$(inherited)", "-framework", "TwoPadsKit"]
+        DEAD_CODE_STRIPPING: YES
+    preBuildScripts:
+      - name: Kotlin framework
+        basedOnDependencyAnalysis: false
+        script: |
+          set -e
+          cd "$SRCROOT/.."
+          ./gradlew :shared:embedAndSignAppleFrameworkForXcode
+  TwoPadsTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - TwoPadsTests
+    dependencies:
+      - target: TwoPads
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dgmltn.automerge.sample.mac.tests
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/TwoPads.app/Contents/MacOS/TwoPads"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+schemes:
+  TwoPads:
+    build:
+      targets:
+        TwoPads: all
+        TwoPadsTests: [test]
+    test:
+      targets:
+        - TwoPadsTests

@@ -3,86 +3,225 @@
 Kotlin Multiplatform bindings for [Automerge](https://automerge.org), the CRDT library, generated from its Rust
 core: one API on the JVM, Android, iOS and macOS.
 
-> **Status: not built yet.** This repo holds the design and the build plan; the code comes next. Start at
-> [Building it](#building-it).
+**Status: built.** Version `0.1.0` is published to Maven Local as `com.dgmltn.automerge:automerge-kmp:0.1.0`. Its own
+tests run on the JVM, macOS and the iOS simulator. Android has no test target here: it is tested through the sample's
+minified release, on an emulator and a Pixel 10 Pro. The sample in [`sample/`](sample) has been run by hand on all
+four of its platforms: desktop, Android, a native Mac app, and iOS on an iPhone. Nothing uses it in space-kmp yet; see
+[Not here](#not-here).
 
 ## Why
 
 [space-kmp](../space-kmp) syncs spaces between devices, and its `:automerge` module keeps an Automerge document in
 a space. Today that module runs on automerge-java, which has no iOS or macOS build, so neither wrtr on iOS nor the
 Space Mac app (Kotlin/Native) can use it. automerge-kmp is the replacement that runs on every target space-kmp has.
-It is what wrtr's notes and the scratchpad will merge with, instead of the last writer winning.
+
+| Target | For | Native library |
+|---|---|---|
+| `jvm` | tests, desktop | the build host's only (macOS arm64), in the jar |
+| `android` | phones and the emulator | arm64-v8a, x86_64 |
+| `iosArm64`, `iosSimulatorArm64` | wrtr on iOS | static, in the klib |
+| `macosArm64` | the Space Mac app, the mirror | static, in the klib |
 
 ## How it works
 
-- **Rust:** automerge-swift's UniFFI crate (`uniffi_automerge`, MIT), vendored at a pinned commit, wraps the
-  `automerge` crate (0.12). There is no Rust of our own beyond a few listed changes, in `VENDORED.md`.
-- **Kotlin:** [Gobley](https://gobley.dev) generates JNI/JNA-backed KMP bindings from that crate, the way
-  [iroh-kmp](../iroh-kmp) wraps iroh. The generated API is the crate's (`Doc`, `ObjId`, `ChangeHash`, …), in the
-  package `com.dgmltn.automerge`, and every document indexes text in UTF-16, so Automerge indices are `String` indices.
-- **Publishing:** to Maven Local as `com.dgmltn.automerge:automerge-kmp`. Gobley 0.3.7 can't build on AGP 9, so this
-  repo stays on iroh-kmp's toolchain (Kotlin 2.1.10, AGP 8.7.3, JDK 17, Rust 1.98.0) while space-kmp, on Kotlin 2.4
-  and AGP 9, takes the published artifact. Neither space-kmp nor wrtr needs Rust to build.
-- **The friendly API** lives in space-kmp's `:automerge` (`AutomergeDoc`, `AmValue`, …), not here, so this repo only
-  changes when the Rust side does.
+- **Rust:** automerge-swift's UniFFI crate (`uniffi_automerge`, MIT) is vendored at a pinned commit in
+  `src/commonMain/rust/` and wraps the `automerge` crate (0.12.0). It keeps its own `Cargo.toml` there; Gradle points
+  Gobley at it with `cargo { packageDirectory = … }`, because uniffi looks for the UDL beside the manifest. The few
+  changes to it are listed in [`VENDORED.md`](VENDORED.md).
+- **Kotlin:** [Gobley](https://gobley.dev) 0.3.7 generates JNA-backed KMP bindings from that crate, the way
+  [iroh-kmp](../iroh-kmp) wraps iroh. The API is the crate's (`Doc`, `ObjId`, `ChangeHash`, `Cursor`, …) in the
+  package `com.dgmltn.automerge`.
+  - Bytes cross the FFI as `ByteArray`: `ObjId`, `ChangeHash`, `ActorId` and `Cursor` are typealiases of it, and
+    `save()`, the change encodings and sync messages take and return it.
+  - Text indices are UTF-16 code units, Kotlin `String` indices, in every document: the crate is built with
+    automerge's `utf16-indexing` feature, which makes UTF-16 the default for `Doc()`, `Doc.newWithActor` and
+    `Doc.load`.
+  - Two additions to the upstream crate: `Doc.loadWithTextEncoding(bytes, encoding)`, to load with an encoding other
+    than the default; and `Doc.rollback()`, which drops what was written since the last commit.
+  - `ObjId`, `ChangeHash` and `Cursor` bytes are parsed as they cross into Rust, so malformed ones fail that one call
+    and leave the document as it was.
+  - Three names in Gobley's generated Kotlin are patched after generation (in `build.gradle.kts`): `ScalarValue.Int`
+    and `ScalarValue.Boolean` shadow the return types of the generated `equals`/`hashCode`, and `Position.Cursor`
+    shadows the `Cursor` type of its own field. Qualifying them keeps the UDL as upstream wrote it. The build fails if
+    a pattern stops matching.
+- **Android:** the AAR carries `libuniffi_automerge.so` for arm64-v8a and x86_64, and consumer R8 rules for JNA and
+  the binding. It does not carry `libjnidispatch.so`: JNA's own AAR, a runtime dependency of this one, brings it.
+- **Publishing:** to Maven Local only. Gobley 0.3.7 can't build on AGP 9, so this repo stays on iroh-kmp's toolchain
+  (Kotlin 2.1.10, AGP 8.7.3, JDK 17, Rust 1.98.0) and consumers on Kotlin 2.4 / AGP 9 take the published artifact.
+  They need no Rust or NDK.
 
-| Target | |
-|---|---|
-| `jvm` | tests, desktop |
-| `android` | arm64-v8a, x86_64 |
-| `iosArm64`, `iosSimulatorArm64` | wrtr on iOS |
-| `macosArm64` | the Space Mac app, the mirror |
+## Prerequisites
 
-## Building it
+- **Rust** through rustup, which reads `rust-toolchain.toml` on its own. That pins Rust 1.98.0 and the five targets
+  the build compiles for (`aarch64-apple-darwin`, `aarch64-linux-android`, `x86_64-linux-android`,
+  `aarch64-apple-ios`, `aarch64-apple-ios-sim`), and rustup installs them with the toolchain. Where 1.98.0 was
+  already installed without them, `rustup target add` the missing ones. [mise](https://mise.jdx.dev) is optional:
+  `mise.toml` pins the same Rust and a JDK 17.
+- **A JDK 17** anywhere Gradle can find it. `gradle/gradle-daemon-jvm.properties`
+  asks for 17 for the Gradle daemon, whatever `java` on the path is, because Gradle 8.13 and detekt 1.23.8 can't run
+  on newer JDKs. Without one, Gradle stops before configuring with "Unable to download toolchain matching the
+  requirements ({languageVersion=17, …})". The sample's build asks for 17 the same way.
+- **The Android SDK** through `ANDROID_HOME`, with NDK `29.0.13846066` and build-tools `35.0.0`.
+- **Xcode**, for the Apple targets, and [xcodegen](https://github.com/yonaskolb/XcodeGen) for the Apple samples.
 
-Hand an agent these two documents, in order:
-
-1. The design: [`resources/docs/superpowers/specs/2026-11-18-automerge-kmp-design.md`](resources/docs/superpowers/specs/2026-11-18-automerge-kmp-design.md),
-   what is being built and why, and what was decided.
-2. The plan: [`resources/docs/superpowers/plans/2026-11-18-automerge-kmp.md`](resources/docs/superpowers/plans/2026-11-18-automerge-kmp.md),
-   seven tasks across this repo and space-kmp, each with its tests. It starts with the binding on the JVM and
-   a throwaway spike that proves the risky parts before anything builds on them.
-
-A prompt that works: *"Build automerge-kmp: read `~/Developer/automerge-kmp/README.md`, then follow the plan it
-points to with superpowers:subagent-driven-development."*
-
-The plan's Global Constraints are the rules that matter most. Never modify iroh-kmp. Never run space-kmp's
-`runMacApp` or `buildMacApp`, because they quit the Space app Doug is running. Use an emulator, not an attached
-phone. Never push.
-
-## Once built
-
-Prerequisites: [mise](https://mise.jdx.dev) (it installs the pinned JDK and Rust), the Rust targets
-(`rustup target add aarch64-linux-android x86_64-linux-android aarch64-apple-ios aarch64-apple-ios-sim aarch64-apple-darwin`),
-Xcode, and an Android NDK r28+ through `ANDROID_HOME`.
+## Build, test, publish
 
 ```sh
 ./gradlew jvmTest macosArm64Test iosSimulatorArm64Test   # the tests, on three targets
-./gradlew publishToMavenLocal                            # → ~/.m2/repository/com/dgmltn/automerge/automerge-kmp/<version>/
+./gradlew ktfmtCheck detekt                              # format and lint
+./gradlew assembleRelease                                # the AAR, in build/outputs/aar/
+./gradlew publishToMavenLocal                            # → ~/.m2/repository/com/dgmltn/automerge/
 ```
 
-space-kmp takes it from Maven Local:
+`./gradlew clean` also cleans the Rust build, so the next build compiles the crate for every target again (about two
+minutes on this Mac with the Gradle build cache off; with it on, Gradle restores most of it).
+
+## Using it
 
 ```kotlin
 // settings.gradle.kts
 dependencyResolutionManagement {
     repositories {
         mavenLocal { content { includeGroup("com.dgmltn.automerge") } }
-        // …
+        google()
+        mavenCentral()
+    }
+}
+
+// build.gradle.kts of a KMP module
+kotlin {
+    sourceSets {
+        commonMain.dependencies { implementation("com.dgmltn.automerge:automerge-kmp:0.1.0") }
     }
 }
 ```
 
-A change here reaches space-kmp only after a version bump (`VERSION_NAME` in `gradle.properties`, and the
-`automerge-kmp` entry in space-kmp's version catalog) and a republish.
+Every document indexes text in UTF-16 code units by default, so Automerge's text indices are Kotlin `String` indices
+(an emoji counts as two). `Doc.newWithTextEncoding` and `Doc.loadWithTextEncoding` remain for another encoding.
+
+```kotlin
+val doc = Doc()
+val text = doc.putObjectInMap(root(), "text", ObjType.TEXT)
+doc.spliceText(text, 0u, 0, "a😀b")
+doc.commitWith(null, 0)
+
+val loaded = Doc.load(doc.save())
+loaded.spliceText(text, 3u, 1, "c")
+check(loaded.text(text) == "a😀c")
+```
+
+- **Closing:** a `Doc` holds a Rust object: `close()` it (it is `AutoCloseable`) when done.
+- **Threads:** each call is atomic and safe from any thread, since the crate locks the document for the call. A
+  sequence of calls is not, so serialise your own edits. `a.merge(a)` can deadlock, and so can `a.merge(b)` on one
+  thread while `b.merge(a)` runs on another.
+- **Ids are bytes:** `ObjId`, `ChangeHash`, `Cursor` and `ActorId` are `ByteArray`, so anything holding one compares by
+  reference: `doc.heads() == doc.heads()` is false once there is a head, and so is `==` between two `Value.Object`s,
+  `Position.Cursor`s, `PathElement`s, `Change`s or `PatchAction`s naming the same object. Compare the bytes with
+  `contentEquals`, and wrap an id in a type of your own with explicit equality to use it as a map key or in a set.
+- **Malformed bytes:** an `ObjId`, `ChangeHash` or `Cursor` that does not parse throws (`DocException.Internal` from a
+  call that declares `DocException`, `InternalException` from one that declares nothing) and leaves the `Doc`
+  usable. Any bytes are a valid `ActorId`.
+
+**Android apps:**
+
+- Set `abiFilters` to the two ABIs the Rust library is built for. JNA's AAR ships `libjnidispatch.so` for more ABIs,
+  so without the filter the app installs on, say, an armeabi-v7a phone and crashes on first use.
+  ```kotlin
+  android { defaultConfig { ndk { abiFilters += listOf("arm64-v8a", "x86_64") } } }
+  ```
+- No keep rules: the AAR's consumer rules keep JNA and the binding's package `com.dgmltn.automerge` (not its
+  subpackages, which stay yours to shrink).
+- No `pickFirsts` for this library alone. An app that also has iroh-kmp still needs
+  `packaging { jniLibs.pickFirsts += "**/libjnidispatch.so" }`, because iroh-kmp's AAR bundles its own copy.
+
+## The sample
+
+[`sample/`](sample) is its own Gradle build on space-kmp's toolchain (Kotlin 2.4.20, AGP 9.4.1, Gradle 9.7.1) that
+takes the library only from Maven Local, so **run `./gradlew publishToMavenLocal` here first**. It is two text areas
+that merge: typing in one shows in the other while they are linked; unlinked, each is edited apart, and linking again
+merges both edits, with each caret staying on its character.
+
+| Module | |
+|---|---|
+| `shared` | the two pads' logic (`Pad`, `TwoPads`), no UI; also the `TwoPadsKit` framework the Mac app links |
+| `shared-ui` | the Compose screen and view model; also the `TwoPadsUI` framework the iOS app links |
+| `app-desktop` | Compose desktop window (JVM) |
+| `app-android` | Android app, minified with R8 |
+| `app-macos` | native SwiftUI Mac app over `TwoPadsKit` (xcodegen, not a Gradle module) |
+| `app-ios` | SwiftUI iOS app hosting the Compose screen (xcodegen, not a Gradle module) |
+
+In `sample/`:
+
+```sh
+./gradlew :shared:allTests :shared-ui:jvmTest :shared-ui:iosSimulatorArm64Test ktfmtCheck detekt
+./gradlew :app-desktop:run                     # the desktop app
+./gradlew :app-android:assembleRelease         # → app-android/build/outputs/apk/release/app-android-release.apk
+adb -s <serial> install -r app-android/build/outputs/apk/release/app-android-release.apk
+```
+
+The Apple apps build their Kotlin framework from a pre-build script, so Xcode needs nothing else. Generate the
+project, then open `TwoPads.xcodeproj` in Xcode or test from the command line:
+
+```sh
+cd sample/app-macos && xcodegen generate
+xcodebuild test -project TwoPads.xcodeproj -scheme TwoPads -destination 'platform=macOS,arch=arm64'
+
+cd sample/app-ios && xcodegen generate
+xcodebuild test -project TwoPads.xcodeproj -scheme TwoPads -destination 'platform=iOS Simulator,name=<iPhone>'
+```
+
+where `<iPhone>` is any available iPhone simulator (`xcrun simctl list devices available`).
+
+For a device, put a `DEVELOPMENT_TEAM` in `sample/app-ios/Local.xcconfig` (git-ignored).
+
+What the sample proves:
+
+- The artifact, built on Kotlin 2.1.10 / AGP 8.7.3, resolves, compiles and runs on Kotlin 2.4.20 / AGP 9.4.1 on every
+  target.
+- It links into one Apple binary beside iroh-kmp's Rust static library (`LinkTest`, on macosArm64 and the iOS
+  simulator; iosArm64 links).
+- A minified Android release works with only the AAR's own R8 rules (checked on an emulator and a Pixel 10 Pro).
+- A real native Mac app (SwiftUI, Kotlin/Native) and a real iOS app use it, with XCTest and XCUITest runs.
 
 ## Updating Automerge
 
 The crate is vendored, not depended on: `VENDORED.md` names the automerge-swift commit it came from and every change
 made since. To move to a newer automerge-swift, diff its `rust/` between that commit and the new one, apply the diff
-here, and update `VENDORED.md`.
+in `src/commonMain/rust/`, keep or redo each change `VENDORED.md` lists, and update it.
+
+Any change to the Rust side or the generated bindings reaches a consumer only after a version bump (`VERSION_NAME` in
+`gradle.properties`, and the consumer's `automerge-kmp` version, as in `sample/gradle/libs.versions.toml`) and
+`./gradlew publishToMavenLocal`.
+
+## Not here
+
+- **The space-kmp port** is a later plan: its `:automerge` module's hand-written layer (`AutomergeDoc` and the rest),
+  moving `SpaceDoc` and its Automerge sample onto this library, and removing automerge-java.
+- **The Space Mac app** linking this beside iroh-kmp, and its size with it, were not tried; only the sample's apps
+  were.
+- **An Android app holding both iroh-kmp and this library** has not been built. iroh-kmp's AAR bundles its own
+  `libjnidispatch.so`, a different build from the one in JNA 5.18.1's AAR that this library depends on, so
+  `pickFirsts` keeps one of the two and nothing here shows which works for both.
+
+## Known limits
+
+- The JVM artifact carries only the build host's native library (macOS arm64), so it has nothing to load on any
+  other desktop OS or CPU.
+- Android: arm64-v8a and x86_64 only.
+- Automerge's sync protocol (`SyncState`, sync messages) is exposed but unused, and untested under R8.
+- The sample's detekt (1.23.8) needs its Gradle daemon on a JDK 17; it fails on newer JDKs.
+- Version `0.1.0` was republished in place to Maven Local during development. Once a consumer has resolved it, the
+  next change must bump the version (see [Updating Automerge](#updating-automerge)).
+- The iOS sample is UI-tested on iPhone only, not iPad, and its simulator build prints a linker warning that
+  Compose's bundled libicu was built for a newer iOS than the app's 17.0.
+
+## Record
+
+The design ([`resources/docs/superpowers/specs/2026-11-18-automerge-kmp-design.md`](resources/docs/superpowers/specs/2026-11-18-automerge-kmp-design.md),
+with its spike results) and the plan it was built from
+([`resources/docs/superpowers/plans/2026-11-18-automerge-kmp.md`](resources/docs/superpowers/plans/2026-11-18-automerge-kmp.md)).
 
 ## License
 
 The vendored crate is automerge-swift's, under the MIT license that ships with it (`src/commonMain/rust/LICENSE`).
-The rest is Apache-2.0, as space-kmp is.
+The rest is Apache-2.0 ([`LICENSE`](LICENSE)), as space-kmp is.

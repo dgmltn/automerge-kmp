@@ -1,7 +1,15 @@
 # automerge-kmp
 
-Date: 2026-11-18. Status: approved by Doug for building, not built. Plan:
+Date: 2026-11-18. Status: approved by Doug for building; built 2026-11-18 (see Spike results and As built). Plan:
 `resources/docs/superpowers/plans/2026-11-18-automerge-kmp.md`.
+
+**Scope (Doug, 2026-11-18):** the first build is this repo alone, ending in a usable dependency. space-kmp is only
+read, to see which Automerge calls its `SpaceDoc` and sample make; everything under "space-kmp changes" and the
+hand-written `AutomergeDoc` layer wait for a plan of their own. The spike below runs in this repo's own sample
+(`sample/`, a separate Gradle build on space-kmp's toolchain: two text areas that merge) and not in space-kmp, so it
+leaves the Mac app's link and size for that later plan. Two additions to the vendored crate's changes: every
+`sequence<u8>` in the UDL becomes `bytes` (a `ByteArray` in Kotlin, not a boxed list), and `Doc` gains `rollback`
+(a `change { }` that throws rolls back today, on automerge-java).
 
 ## Why
 
@@ -144,6 +152,56 @@ need, not a 1:1 mirror of the UDL; no generated type appears in its public signa
 - **uniffi 0.28 → 0.29.4 bump** on the vendored UDL: expected to be mechanical; the spike runs Gobley's codegen.
 - **App size:** Automerge adds a native library per Android ABI and to each Apple binary; the spike records the
   release APK and Mac app size before and after.
+
+### Spike results (2026-11-18)
+
+Run in this repo's `sample/`, not in space-kmp.
+
+- **The artifact on Kotlin 2.4.20 / AGP 9.4.1:** resolved from Maven Local, compiled and ran first time, with no
+  workaround and no version-skew warning. jvm: tests pass (and the Compose desktop app runs). macosArm64 and
+  iosSimulatorArm64: test executables link and pass. iosArm64: links (test executable and a Release device build of the
+  iOS app). android: an AGP 9 KMP library and a minified `com.android.application` build; the release APK ran on an
+  emulator with only the AAR's consumer R8 rules.
+- **Two Rust static libraries in one Apple binary:** no collision. Test executables holding both automerge-kmp's and
+  iroh-kmp 0.2.1's static libraries link and run on macosArm64 and iosSimulatorArm64, and link on iosArm64; the
+  linked binaries hold one copy of the Rust runtime symbols both carry (`rust_begin_unwind`, `rust_eh_personality`),
+  and the macosArm64 link printed no warning. No fallback was needed. The Space Mac app itself was not tried, and the
+  sample's Mac and iOS apps do not link iroh-kmp (it is a test dependency there).
+- **uniffi 0.28.2 → 0.29.4:** mechanical in the crate: the four `UniffiCustomTypeConverter` impls, which 0.29 removed,
+  became `uniffi::custom_type!`, and `Cargo.lock` was re-resolved. Gobley 0.3.7 also needed `namespace = "automerge"`
+  (uniffi names the C header after the UDL namespace, not the crate) and a post-generation patch of three names in
+  its Kotlin (see As built).
+- **Sizes** (none has a before figure: nothing was built without Automerge to compare against):
+  - Android release APK, minified, arm64-v8a + x86_64: 8.3 MB (8,318,996 bytes). It includes Compose and Material 3.
+    Automerge's share is `libuniffi_automerge.so`, 3.1 MB on arm64-v8a (3,119,128 bytes) and 3.6 MB on x86_64
+    (3,577,736), so about 3.1 MB on a phone; JNA's `libjnidispatch.so` adds 177 KB / 127 KB.
+  - Native Mac app (SwiftUI, no Compose), Release: `TwoPads.app` 5.5 MB, its binary 5,756,064 bytes, holding the
+    Kotlin/Native runtime, the pads' logic and the Rust static library.
+  - iOS app, Release device build: `TwoPads.app` 42 MB, its binary 43,696,096 bytes, unstripped (an archive would
+    strip it). It includes Compose Multiplatform and Skia.
+
+### As built
+
+Where the build departs from the text above:
+
+- **Manifest location:** the crate keeps its own `Cargo.toml` in `src/commonMain/rust/`, with Gobley's
+  `cargo { packageDirectory }` pointed at it; uniffi's bindgen looks for the UDL at `<manifest dir>/src/`, so a root
+  manifest can't generate the bindings.
+- **`bytes`:** all 18 `sequence<u8>` in the UDL are `bytes`, so every byte value is a `ByteArray` and `ObjId`,
+  `ChangeHash`, `ActorId` and `Cursor` are typealiases of it.
+- **`rollback`:** `Doc.rollback()` over `AutoCommit::rollback`, returning the number of operations dropped. With
+  `load_with_text_encoding`, it is the second addition to the crate.
+- **Generated-code patch:** Gobley's templates name `Boolean`, `Int` and `Cursor` unqualified, which the UDL's
+  `ScalarValue.Boolean`, `ScalarValue.Int` and `Position.Cursor` shadow. The build qualifies the three after
+  generation, rather than renaming the variants and growing the diff from automerge-swift, and fails if a pattern stops
+  matching.
+- **JNA not bundled:** the AAR does not carry `libjnidispatch.so`. JNA's AAR is already a runtime dependency of the
+  binding's Android artifact and brings it, so a second copy only forced every app to add a `pickFirsts`. An app that
+  also holds iroh-kmp, which does bundle it, keeps `jniLibs.pickFirsts += "**/libjnidispatch.so"`.
+- **Keep rule scope:** the consumer rules keep JNA and `com.dgmltn.automerge.*`, the one package the generated code is
+  in, not `com.dgmltn.automerge.**`, so a consumer's own subpackages still shrink.
+- **JVM jar:** carries only the build host's library (macOS arm64), embedded at JNA's resource path, rather than
+  Gobley's per-host classifier jars, which no consumer's runtime classpath picks up.
 
 ## Left to the builder
 

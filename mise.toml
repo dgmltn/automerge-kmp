@@ -1,0 +1,7 @@
+# JDK 17 is what AGP 8.7 and Gradle 8.13 need. The Android SDK and NDK stay host-provided
+# (ANDROID_HOME). mise manages toolchains, not targets: the Rust cross-compile targets come from
+# rust-toolchain.toml, which rustup reads.
+
+[tools]
+java = "temurin-17.0.20+8"
+rust = "1.98.0"
