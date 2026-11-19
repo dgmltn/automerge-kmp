@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    # The Apple targets need Xcode, and the jvm jar embeds this host's (macOS arm64) library.
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the tag matches VERSION_NAME
+        run: |
+          version=$(sed -n 's/^VERSION_NAME=//p' gradle.properties)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match VERSION_NAME=$version in gradle.properties"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: "platforms;android-35 build-tools;35.0.0 ndk;29.0.13846066"
+
+      - name: Install Rust from rust-toolchain.toml
+        run: rustup toolchain install
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Test
+        run: ./gradlew jvmTest macosArm64Test iosSimulatorArm64Test ktfmtCheck detekt
+
+      - name: Publish to Maven Central
+        run: ./gradlew publishAndReleaseToMavenCentral
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
+
+      - name: Create the GitHub release
+        run: |
+          group=$(sed -n 's/^GROUP=//p' gradle.properties)
+          artifact=$(sed -n 's/^POM_ARTIFACT_ID=//p' gradle.properties)
+          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes \
+            --notes "\`implementation(\"$group:$artifact:$VERSION\")\`"
+        env:
+          GH_TOKEN: ${{ github.token }}

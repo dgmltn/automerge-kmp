@@ -183,6 +183,8 @@ mavenPublishing {
     // Signing only when a key is configured, so publishing to Maven Local needs none.
     if (providers.gradleProperty("signingInMemoryKey").isPresent) signAllPublications()
 
+    publishToMavenCentral()
+
     configure(
         KotlinMultiplatform(
             javadocJar = JavadocJar.Empty(),
@@ -194,6 +196,27 @@ mavenPublishing {
     pom {
         name = "automerge-kmp"
         description = "Kotlin Multiplatform bindings for Automerge, generated from its Rust core."
+        inceptionYear = "2026"
+        url = "https://github.com/dgmltn/automerge-kmp"
+        licenses {
+            license {
+                name = "The Apache License, Version 2.0"
+                url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
+                distribution = "repo"
+            }
+        }
+        developers {
+            developer {
+                id = "dgmltn"
+                name = "Doug Melton"
+                url = "https://github.com/dgmltn"
+            }
+        }
+        scm {
+            url = "https://github.com/dgmltn/automerge-kmp"
+            connection = "scm:git:https://github.com/dgmltn/automerge-kmp.git"
+            developerConnection = "scm:git:ssh://git@github.com/dgmltn/automerge-kmp.git"
+        }
     }
 }
 
