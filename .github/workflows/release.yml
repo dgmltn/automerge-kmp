@@ -3,10 +3,57 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # A trial run from the Actions tab: builds, tests and checks the jar, and publishes nothing.
+  workflow_dispatch:
 
 jobs:
+  # The jvm jar's library for each desktop platform a Mac can't link for, built on its own OS.
+  jvm-native:
+    strategy:
+      matrix:
+        include:
+          # Ubuntu 22.04 for its glibc (2.35): a library runs on that glibc or any newer one.
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            jna: linux-x86-64
+            library: libuniffi_automerge.so
+          - os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            jna: linux-aarch64
+            library: libuniffi_automerge.so
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            jna: win32-x86-64
+            library: uniffi_automerge.dll
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust from rust-toolchain.toml
+        run: |
+          rustup toolchain install
+          rustup target add ${{ matrix.target }}
+
+      - name: Build the library
+        working-directory: src/commonMain/rust
+        run: |
+          cargo build --release --locked --target ${{ matrix.target }}
+          mkdir -p "$GITHUB_WORKSPACE/jvm-natives/${{ matrix.jna }}"
+          cp "target/${{ matrix.target }}/release/${{ matrix.library }}" "$GITHUB_WORKSPACE/jvm-natives/${{ matrix.jna }}/"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: jvm-native-${{ matrix.jna }}
+          path: jvm-natives/
+          if-no-files-found: error
+
   release:
-    # The Apple targets need Xcode, and the jvm jar embeds this host's (macOS arm64) library.
+    # The Apple targets need Xcode. The jvm jar embeds this host's (macOS arm64) library, the Intel
+    # macOS one built here, and the ones from jvm-native.
+    needs: jvm-native
     runs-on: macos-latest
     permissions:
       contents: write
@@ -16,7 +63,7 @@ jobs:
       - name: Check the tag matches VERSION_NAME
         run: |
           version=$(sed -n 's/^VERSION_NAME=//p' gradle.properties)
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "v$version" != "$GITHUB_REF_NAME" ]; then
             echo "::error::Tag $GITHUB_REF_NAME does not match VERSION_NAME=$version in gradle.properties"
             exit 1
           fi
@@ -39,8 +86,43 @@ jobs:
       - name: Test
         run: ./gradlew jvmTest macosArm64Test iosSimulatorArm64Test ktfmtCheck detekt
 
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: jvm-native-*
+          path: jvm-natives
+          merge-multiple: true
+
+      - name: Build the Intel macOS library
+        working-directory: src/commonMain/rust
+        run: |
+          rustup target add x86_64-apple-darwin
+          cargo build --release --locked --target x86_64-apple-darwin
+          mkdir -p "$GITHUB_WORKSPACE/jvm-natives/darwin-x86-64"
+          cp target/x86_64-apple-darwin/release/libuniffi_automerge.dylib "$GITHUB_WORKSPACE/jvm-natives/darwin-x86-64/"
+
+      - name: Check the jvm jar holds every platform's library
+        run: |
+          ./gradlew jvmJar -PjvmNativesDir=jvm-natives
+          contents=$(unzip -Z1 "build/libs/automerge-kmp-jvm-$VERSION.jar")
+          for library in darwin-aarch64/libuniffi_automerge.dylib darwin-x86-64/libuniffi_automerge.dylib \
+            linux-x86-64/libuniffi_automerge.so linux-aarch64/libuniffi_automerge.so win32-x86-64/uniffi_automerge.dll; do
+            if ! grep -qx "$library" <<< "$contents"; then
+              echo "::error::The jvm jar has no $library"
+              exit 1
+            fi
+          done
+
+      - name: Keep a trial run's jvm jar
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: jvm-jar
+          path: build/libs/automerge-kmp-jvm-${{ env.VERSION }}.jar
+          if-no-files-found: error
+
       - name: Publish to Maven Central
-        run: ./gradlew publishAndReleaseToMavenCentral
+        if: github.event_name == 'push'
+        run: ./gradlew publishAndReleaseToMavenCentral -PjvmNativesDir=jvm-natives
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
@@ -48,6 +130,7 @@ jobs:
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
 
       - name: Create the GitHub release
+        if: github.event_name == 'push'
         run: |
           group=$(sed -n 's/^GROUP=//p' gradle.properties)
           artifact=$(sed -n 's/^POM_ARTIFACT_ID=//p' gradle.properties)

@@ -17,7 +17,7 @@ Space Mac app (Kotlin/Native) can use it. automerge-kmp is the replacement that 
 
 | Target | For | Native library |
 |---|---|---|
-| `jvm` | tests, desktop | the build host's only (macOS arm64), in the jar |
+| `jvm` | tests, desktop | in the jar: a release's holds macOS (arm64, x86-64), Linux (x86-64, arm64) and Windows (x86-64); a local build's holds the build host's only |
 | `android` | phones and the emulator | arm64-v8a, x86_64 |
 | `iosArm64`, `iosSimulatorArm64` | wrtr on iOS | static, in the klib |
 | `macosArm64` | the Space Mac app, the mirror | static, in the klib |
@@ -205,8 +205,12 @@ Any change to the Rust side or the generated bindings reaches a consumer only af
 
 ## Known limits
 
-- The JVM artifact carries only the build host's native library (macOS arm64), so it has nothing to load on any
-  other desktop OS or CPU.
+- A JVM artifact built locally carries only the build host's native library (macOS arm64), so it has nothing to
+  load on any other desktop OS or CPU. A release's carries five: the release workflow builds the Linux and Windows
+  libraries on their own runners and passes them in with `-PjvmNativesDir=<folder>`, which holds each library in
+  its JNA resource folder (`linux-x86-64/libuniffi_automerge.so`). Those libraries are built, not tested: the tests
+  run on macOS arm64 only. The Linux ones need glibc 2.35 or newer. Running the Release workflow by hand from the
+  Actions tab does everything but publish, and keeps the jvm jar as a download.
 - Android: arm64-v8a and x86_64 only.
 - Automerge's sync protocol (`SyncState`, sync messages) is exposed but unused, and untested under R8.
 - The sample's detekt (1.23.8) needs its Gradle daemon on a JDK 17; it fails on newer JDKs.

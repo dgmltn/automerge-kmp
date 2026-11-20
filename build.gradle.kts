@@ -29,11 +29,15 @@ version = providers.gradleProperty("VERSION_NAME").get()
 val jvmNativeResDir = layout.buildDirectory.dir("jvmNativeResources")
 val embedJvmNativeLib = tasks.register<Sync>("embedJvmNativeLib")
 
+// A folder of libraries for the other desktop platforms, each in its JNA resource folder
+// (`linux-x86-64/libuniffi_automerge.so`). The release workflow builds each on its own OS.
+val jvmNativesDir = providers.gradleProperty("jvmNativesDir")
+
 cargo {
     // The vendored crate keeps its own layout, where uniffi expects to find the UDL beside lib.rs.
     packageDirectory = layout.projectDirectory.dir("src/commonMain/rust")
 
-    // The jvm jar carries only this host's library (see embedJvmNativeLib), so Gobley's per-host
+    // The jvm jar carries the libraries itself (see embedJvmNativeLib), so Gobley's per-host
     // classifier jar would be a duplicate that no consumer's runtime classpath ever picks up.
     publishJvmArtifacts = false
 
@@ -63,6 +67,7 @@ cargo {
                 ) {
                     into(jnaDir)
                 }
+                jvmNativesDir.orNull?.let { dir -> from(dir) { exclude("$jnaDir/**") } }
                 into(jvmNativeResDir)
 
                 // Without this a jar with no native library builds fine and fails only at
