@@ -120,10 +120,9 @@ jobs:
           path: build/libs/automerge-kmp-jvm-${{ env.VERSION }}.jar
           if-no-files-found: error
 
-      # Uploads only: the release goes live when Publish is pressed in the Central Portal's Deployments tab.
-      - name: Upload to Maven Central
+      - name: Publish to Maven Central
         if: github.event_name == 'push'
-        run: ./gradlew publishToMavenCentral -PjvmNativesDir=jvm-natives
+        run: ./gradlew publishAndReleaseToMavenCentral -PjvmNativesDir=jvm-natives
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}

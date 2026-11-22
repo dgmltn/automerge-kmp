@@ -3,7 +3,7 @@
 Kotlin Multiplatform bindings for [Automerge](https://automerge.org), the CRDT library, generated from its Rust
 core: one API on the JVM, Android, iOS and macOS.
 
-**Status: built.** Version `0.1.0` is published to Maven Local as `com.dgmltn.automerge:automerge-kmp:0.1.0`. Its own
+**Status: released.** Version `0.1.0` is on Maven Central as `com.dgmltn.automerge:automerge-kmp:0.1.0`. Its own
 tests run on the JVM, macOS and the iOS simulator. Android has no test target here: it is tested through the sample's
 minified release, on an emulator and a Pixel 10 Pro. The sample in [`sample/`](sample) has been run by hand on all
 four of its platforms: desktop, Android, a native Mac app, and iOS on an iPhone. Nothing uses it in space-kmp yet; see
@@ -46,7 +46,7 @@ Space Mac app (Kotlin/Native) can use it. automerge-kmp is the replacement that 
     a pattern stops matching.
 - **Android:** the AAR carries `libuniffi_automerge.so` for arm64-v8a and x86_64, and consumer R8 rules for JNA and
   the binding. It does not carry `libjnidispatch.so`: JNA's own AAR, a runtime dependency of this one, brings it.
-- **Publishing:** to Maven Local only. Gobley 0.3.7 can't build on AGP 9, so this repo stays on iroh-kmp's toolchain
+- **Publishing:** to Maven Central, from the Release workflow when a `v*` tag is pushed. Gobley 0.3.7 can't build on AGP 9, so this repo stays on iroh-kmp's toolchain
   (Kotlin 2.1.10, AGP 8.7.3, JDK 17, Rust 1.98.0) and consumers on Kotlin 2.4 / AGP 9 take the published artifact.
   They need no Rust or NDK.
 
@@ -82,7 +82,6 @@ minutes on this Mac with the Gradle build cache off; with it on, Gradle restores
 // settings.gradle.kts
 dependencyResolutionManagement {
     repositories {
-        mavenLocal { content { includeGroup("com.dgmltn.automerge") } }
         google()
         mavenCentral()
     }
@@ -190,8 +189,22 @@ made since. To move to a newer automerge-swift, diff its `rust/` between that co
 in `src/commonMain/rust/`, keep or redo each change `VENDORED.md` lists, and update it.
 
 Any change to the Rust side or the generated bindings reaches a consumer only after a version bump (`VERSION_NAME` in
-`gradle.properties`, and the consumer's `automerge-kmp` version, as in `sample/gradle/libs.versions.toml`) and
-`./gradlew publishToMavenLocal`.
+`gradle.properties`, and the consumer's `automerge-kmp` version, as in `sample/gradle/libs.versions.toml`) and a
+release, or `./gradlew publishToMavenLocal` for a local consumer such as the sample.
+
+## Releasing
+
+Set `VERSION_NAME` in `gradle.properties`, commit, then tag that commit with the same version and push the tag:
+
+```sh
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+The Release workflow refuses a tag that doesn't match `VERSION_NAME`. It tests, builds the jvm jar's Linux, Windows
+and Intel macOS libraries on their own runners, publishes to Maven Central and creates the GitHub release. It needs
+the repository secrets `MAVEN_CENTRAL_USERNAME` and `MAVEN_CENTRAL_PASSWORD` (a Central Portal user token, not the
+login) and `SIGNING_KEY` and `SIGNING_KEY_PASSWORD` (the GPG key `7F4F1163F2E3249A`, whose public half is on
+keys.openpgp.org). A version on Maven Central can never be changed or removed, so a fix is always a new version.
 
 ## Not here
 
@@ -214,8 +227,9 @@ Any change to the Rust side or the generated bindings reaches a consumer only af
 - Android: arm64-v8a and x86_64 only.
 - Automerge's sync protocol (`SyncState`, sync messages) is exposed but unused, and untested under R8.
 - The sample's detekt (1.23.8) needs its Gradle daemon on a JDK 17; it fails on newer JDKs.
-- Version `0.1.0` was republished in place to Maven Local during development. Once a consumer has resolved it, the
-  next change must bump the version (see [Updating Automerge](#updating-automerge)).
+- Version `0.1.0` was republished in place to Maven Local during development, so a machine that built it then may
+  hold a copy in `~/.m2/repository/com/dgmltn/automerge/` that differs from Maven Central's. A build that lists
+  `mavenLocal()` first resolves that copy; delete the folder to get Central's.
 - The iOS sample is UI-tested on iPhone only, not iPad, and its simulator build prints a linker warning that
   Compose's bundled libicu was built for a newer iOS than the app's 17.0.
 
