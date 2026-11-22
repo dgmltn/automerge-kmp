@@ -6,14 +6,14 @@ core: one API on the JVM, Android, iOS and macOS.
 **Status: released.** Version `0.1.0` is on Maven Central as `com.dgmltn.automerge:automerge-kmp:0.1.0`. Its own
 tests run on the JVM, macOS and the iOS simulator. Android has no test target here: it is tested through the sample's
 minified release, on an emulator and a Pixel 10 Pro. The sample in [`sample/`](sample) has been run by hand on all
-four of its platforms: desktop, Android, a native Mac app, and iOS on an iPhone. Nothing uses it in space-kmp yet; see
-[Not here](#not-here).
+four of its platforms: desktop, Android, a native Mac app, and iOS on an iPhone. space-kmp's `:automerge` module is
+built on it.
 
 ## Why
 
 [space-kmp](../space-kmp) syncs spaces between devices, and its `:automerge` module keeps an Automerge document in
-a space. Today that module runs on automerge-java, which has no iOS or macOS build, so neither wrtr on iOS nor the
-Space Mac app (Kotlin/Native) can use it. automerge-kmp is the replacement that runs on every target space-kmp has.
+a space. That module ran on automerge-java, which has no iOS or macOS build, so neither wrtr on iOS nor the
+Space Mac app (Kotlin/Native) could use it. automerge-kmp replaced it and runs on every target space-kmp has.
 
 | Target | For | Native library |
 |---|---|---|
@@ -208,13 +208,12 @@ keys.openpgp.org). A version on Maven Central can never be changed or removed, s
 
 ## Not here
 
-- **The space-kmp port** is a later plan: its `:automerge` module's hand-written layer (`AutomergeDoc` and the rest),
-  moving `SpaceDoc` and its Automerge sample onto this library, and removing automerge-java.
-- **The Space Mac app** linking this beside iroh-kmp, and its size with it, were not tried; only the sample's apps
-  were.
-- **An Android app holding both iroh-kmp and this library** has not been built. iroh-kmp's AAR bundles its own
-  `libjnidispatch.so`, a different build from the one in JNA 5.18.1's AAR that this library depends on, so
-  `pickFirsts` keeps one of the two and nothing here shows which works for both.
+- **The layer over these bindings** that keeps a document in a space (`AutomergeDoc`, `SpaceDoc` and the rest) is
+  space-kmp's `:automerge` module, not part of this library.
+- **The Space Mac app's size** with this library linked beside iroh-kmp has not been measured.
+- **Which `libjnidispatch.so` an Android app keeps** when it holds both iroh-kmp and this library is not settled
+  here. iroh-kmp's AAR bundles its own, a different build from the one in JNA 5.18.1's AAR that this library
+  depends on. space-kmp's Android samples hold both and set `jniLibs.pickFirsts += "**/libjnidispatch.so"`.
 
 ## Known limits
 
