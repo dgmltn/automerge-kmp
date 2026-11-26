@@ -5,6 +5,7 @@ use automerge::{transaction::Transactable, ReadDoc};
 
 use crate::actor_id::ActorId;
 use crate::cursor::Position;
+use crate::index::{from_index, to_index};
 use crate::mark::{ExpandMark, KeyValue, Mark};
 use crate::patches::Patch;
 use crate::text_encoding::TextEncoding;
@@ -19,6 +20,8 @@ pub enum DocError {
     WrongObjectType,
     #[error("Internal error: {0}")]
     Internal(#[from] automerge::AutomergeError),
+    #[error("index {0} is negative")]
+    NegativeIndex(i32),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -91,48 +94,48 @@ impl Doc {
         Ok(obj.into())
     }
 
-    pub fn put_in_list(&self, obj: ObjId, index: u64, value: ScalarValue) -> Result<(), DocError> {
+    pub fn put_in_list(&self, obj: ObjId, index: i32, value: ScalarValue) -> Result<(), DocError> {
         let obj = am::ObjId::from(obj);
         let mut doc = self.0.write().unwrap();
         assert_list(&*doc, &obj)?;
-        doc.put(obj, index as usize, value).map_err(|e| e.into())
+        doc.put(obj, from_index(index)?, value).map_err(|e| e.into())
     }
 
     pub fn put_object_in_list(
         &self,
         obj: ObjId,
-        index: u64,
+        index: i32,
         value: ObjType,
     ) -> Result<ObjId, DocError> {
         let obj = am::ObjId::from(obj);
         let mut doc = self.0.write().unwrap();
         assert_list(&*doc, &obj)?;
-        let obj = doc.put_object(obj, index as usize, value.into())?;
+        let obj = doc.put_object(obj, from_index(index)?, value.into())?;
         Ok(obj.into())
     }
 
     pub fn insert_in_list(
         &self,
         obj: ObjId,
-        index: u64,
+        index: i32,
         value: ScalarValue,
     ) -> Result<(), DocError> {
         let obj = am::ObjId::from(obj);
         let mut doc = self.0.write().unwrap();
         assert_list(&*doc, &obj)?;
-        doc.insert(obj, index as usize, value).map_err(|e| e.into())
+        doc.insert(obj, from_index(index)?, value).map_err(|e| e.into())
     }
 
     pub fn insert_object_in_list(
         &self,
         obj: ObjId,
-        index: u64,
+        index: i32,
         value: ObjType,
     ) -> Result<ObjId, DocError> {
         let obj = am::ObjId::from(obj);
         let mut doc = self.0.write().unwrap();
         assert_list(&*doc, &obj)?;
-        let obj = doc.insert_object(obj, index as usize, value.into())?;
+        let obj = doc.insert_object(obj, from_index(index)?, value.into())?;
         Ok(obj.into())
     }
 
@@ -143,11 +146,11 @@ impl Doc {
         Ok(doc.delete(&obj, key)?)
     }
 
-    pub fn delete_in_list(&self, obj: ObjId, index: u64) -> Result<(), DocError> {
+    pub fn delete_in_list(&self, obj: ObjId, index: i32) -> Result<(), DocError> {
         let obj = am::ObjId::from(obj);
         let mut doc = self.0.write().unwrap();
         assert_list(&*doc, &obj)?;
-        Ok(doc.delete(&obj, index as usize)?)
+        Ok(doc.delete(&obj, from_index(index)?)?)
     }
 
     pub fn increment_in_map(&self, obj: ObjId, key: String, by: i64) -> Result<(), DocError> {
@@ -157,11 +160,11 @@ impl Doc {
         Ok(doc.increment(&obj, key, by)?)
     }
 
-    pub fn increment_in_list(&self, obj: ObjId, index: u64, by: i64) -> Result<(), DocError> {
+    pub fn increment_in_list(&self, obj: ObjId, index: i32, by: i64) -> Result<(), DocError> {
         let obj = am::ObjId::from(obj);
         let mut doc = self.0.write().unwrap();
         assert_list(&*doc, &obj)?;
-        Ok(doc.increment(&obj, index as usize, by)?)
+        Ok(doc.increment(&obj, from_index(index)?, by)?)
     }
 
     pub fn get_in_map(&self, obj: ObjId, key: String) -> Result<Option<Value>, DocError> {
@@ -171,11 +174,11 @@ impl Doc {
         Ok(doc.get(obj, key)?.map(|v| v.into()))
     }
 
-    pub fn get_in_list(&self, obj: ObjId, idx: u64) -> Result<Option<Value>, DocError> {
+    pub fn get_in_list(&self, obj: ObjId, idx: i32) -> Result<Option<Value>, DocError> {
         let obj = am::ObjId::from(obj);
         let doc = self.0.read().unwrap();
         assert_list(&*doc, &obj)?;
-        Ok(doc.get(obj, idx as usize)?.map(|v| v.into()))
+        Ok(doc.get(obj, from_index(idx)?)?.map(|v| v.into()))
     }
 
     pub fn get_at_in_map(
@@ -194,14 +197,14 @@ impl Doc {
     pub fn get_at_in_list(
         &self,
         obj: ObjId,
-        idx: u64,
+        idx: i32,
         heads: Vec<ChangeHash>,
     ) -> Result<Option<Value>, DocError> {
         let obj = am::ObjId::from(obj);
         let doc = self.0.read().unwrap();
         let heads = heads.into_iter().map(|h| h.into()).collect::<Vec<_>>();
         assert_list(&*doc, &obj)?;
-        Ok(doc.get_at(obj, idx as usize, &heads)?.map(|v| v.into()))
+        Ok(doc.get_at(obj, from_index(idx)?, &heads)?.map(|v| v.into()))
     }
 
     pub fn get_all_in_map(&self, obj: ObjId, key: String) -> Result<Vec<Value>, DocError> {
@@ -215,11 +218,11 @@ impl Doc {
             .collect::<Vec<_>>())
     }
 
-    pub fn get_all_in_list(&self, obj: ObjId, index: u64) -> Result<Vec<Value>, DocError> {
+    pub fn get_all_in_list(&self, obj: ObjId, index: i32) -> Result<Vec<Value>, DocError> {
         let obj = am::ObjId::from(obj);
         let doc = self.0.read().unwrap();
         assert_list(&*doc, &obj)?;
-        let vals = doc.get_all(&obj, index as usize)?;
+        let vals = doc.get_all(&obj, from_index(index)?)?;
         Ok(vals
             .into_iter()
             .map(|(v, id)| Value::from((v, id)))
@@ -246,7 +249,7 @@ impl Doc {
     pub fn get_all_at_in_list(
         &self,
         obj: ObjId,
-        index: u64,
+        index: i32,
         heads: Vec<ChangeHash>,
     ) -> Result<Vec<Value>, DocError> {
         let obj = am::ObjId::from(obj);
@@ -256,7 +259,7 @@ impl Doc {
             .map(am::ChangeHash::from)
             .collect::<Vec<_>>();
         assert_list(&*doc, &obj)?;
-        let vals = doc.get_all_at(&obj, index as usize, heads.as_slice())?;
+        let vals = doc.get_all_at(&obj, from_index(index)?, heads.as_slice())?;
         Ok(vals.into_iter().map(Value::from).collect::<Vec<_>>())
     }
 
@@ -326,20 +329,20 @@ impl Doc {
             .collect::<Vec<_>>())
     }
 
-    pub fn length(&self, obj: ObjId) -> u64 {
+    pub fn length(&self, obj: ObjId) -> i32 {
         let doc = self.0.read().unwrap();
         let obj = am::ObjId::from(obj);
-        doc.length(obj) as u64
+        to_index(doc.length(obj))
     }
 
-    pub fn length_at(&self, obj: ObjId, heads: Vec<ChangeHash>) -> u64 {
+    pub fn length_at(&self, obj: ObjId, heads: Vec<ChangeHash>) -> i32 {
         let doc = self.0.read().unwrap();
         let obj = am::ObjId::from(obj);
         let heads = heads
             .into_iter()
             .map(am::ChangeHash::from)
             .collect::<Vec<_>>();
-        doc.length_at(obj, &heads) as u64
+        to_index(doc.length_at(obj, &heads))
     }
 
     pub fn object_type(&self, obj: ObjId) -> ObjType {
@@ -348,10 +351,10 @@ impl Doc {
         doc.object_type(obj).unwrap().into()
     }
 
-    pub fn cursor(&self, obj: ObjId, position: u64) -> Result<Cursor, DocError> {
+    pub fn cursor(&self, obj: ObjId, position: i32) -> Result<Cursor, DocError> {
         let obj = am::ObjId::from(obj);
         let doc = self.0.read().unwrap();
-        let index = position as usize;
+        let index = from_index(position)?;
         let position = if index >= doc.length(&obj) {
             CursorPosition::End
         } else {
@@ -365,7 +368,7 @@ impl Doc {
     pub fn cursor_at(
         &self,
         obj: ObjId,
-        position: u64,
+        position: i32,
         heads: Vec<ChangeHash>,
     ) -> Result<Cursor, DocError> {
         let obj = am::ObjId::from(obj);
@@ -374,7 +377,7 @@ impl Doc {
             .into_iter()
             .map(am::ChangeHash::from)
             .collect::<Vec<_>>();
-        let index = position as usize;
+        let index = from_index(position)?;
         let cursor_position = if index >= doc.length(&obj) {
             CursorPosition::End
         } else {
@@ -385,11 +388,11 @@ impl Doc {
             .map_err(|error| DocError::Internal(error))
     }
 
-    pub fn cursor_position(&self, obj: ObjId, cursor: Cursor) -> Result<u64, DocError> {
+    pub fn cursor_position(&self, obj: ObjId, cursor: Cursor) -> Result<i32, DocError> {
         let obj = am::ObjId::from(obj);
         let doc = self.0.read().unwrap();
         doc.get_cursor_position(obj, &cursor.into(), None)
-            .map(|cursor| cursor as u64)
+            .map(to_index)
             .map_err(|error| DocError::Internal(error))
     }
 
@@ -398,7 +401,7 @@ impl Doc {
         obj: ObjId,
         cursor: Cursor,
         heads: Vec<ChangeHash>,
-    ) -> Result<u64, DocError> {
+    ) -> Result<i32, DocError> {
         let obj = am::ObjId::from(obj);
         let doc = self.0.read().unwrap();
         let heads = heads
@@ -406,7 +409,7 @@ impl Doc {
             .map(am::ChangeHash::from)
             .collect::<Vec<_>>();
         doc.get_cursor_position(obj, &cursor.into(), Some(&heads))
-            .map(|cursor| cursor as u64)
+            .map(to_index)
             .map_err(|error| DocError::Internal(error))
     }
 
@@ -431,14 +434,14 @@ impl Doc {
     pub fn splice_text(
         &self,
         obj: ObjId,
-        start: u64,
-        delete: i64,
+        start: i32,
+        delete: i32,
         value: String,
     ) -> Result<(), DocError> {
         let obj = am::ObjId::from(obj);
         let mut doc = self.0.write().unwrap();
         assert_text(&*doc, &obj)?;
-        doc.splice_text(&obj, start as usize, delete as isize, value.as_str())?;
+        doc.splice_text(&obj, from_index(start)?, delete as isize, value.as_str())?;
         Ok(())
     }
 
@@ -453,8 +456,8 @@ impl Doc {
     pub fn splice(
         &self,
         obj: ObjId,
-        start: u64,
-        delete: i64,
+        start: i32,
+        delete: i32,
         values: Vec<ScalarValue>,
     ) -> Result<(), DocError> {
         let obj = am::ObjId::from(obj);
@@ -462,7 +465,7 @@ impl Doc {
         assert_list(&*doc, &obj)?;
         doc.splice(
             &obj,
-            start as usize,
+            from_index(start)?,
             delete as isize,
             values.into_iter().map(am::ScalarValue::from),
         )?;
@@ -472,8 +475,8 @@ impl Doc {
     pub fn mark(
         &self,
         obj: ObjId,
-        start: u64,
-        end: u64,
+        start: i32,
+        end: i32,
         expand: ExpandMark,
         name: String,
         value: ScalarValue,
@@ -481,7 +484,7 @@ impl Doc {
         let obj = am::ObjId::from(obj);
         let mut doc = self.0.write().unwrap();
         assert_text(&*doc, &obj)?;
-        let mark = am::marks::Mark::new(name, value, start as usize, end as usize);
+        let mark = am::marks::Mark::new(name, value, from_index(start)?, from_index(end)?);
         doc.mark(obj, mark, expand.into())?;
         Ok(())
     }
@@ -529,23 +532,23 @@ impl Doc {
             Position::Cursor { position: cursor } => doc
                 .get_cursor_position(obj.clone(), &cursor.into(), Some(&heads))
                 .unwrap() as usize,
-            Position::Index { position: index } => index as usize,
+            Position::Index { position: index } => from_index(index)?,
         };
         let markset = doc.get_marks(obj, index, Some(&heads)).unwrap();
-        Ok(Mark::from_markset(markset, index as u64))
+        Ok(Mark::from_markset(markset, to_index(index)))
     }
 
-    pub fn split_block(&self, obj: ObjId, index: u32) -> Result<ObjId, DocError> {
+    pub fn split_block(&self, obj: ObjId, index: i32) -> Result<ObjId, DocError> {
         let mut doc = self.0.write().unwrap();
         let obj = am::ObjId::from(obj);
-        let id = doc.split_block(obj, index.try_into().unwrap())?;
+        let id = doc.split_block(obj, from_index(index)?)?;
         Ok(id.into())
     }
 
-    pub fn join_block(&self, obj: ObjId, index: u32) -> Result<(), DocError> {
+    pub fn join_block(&self, obj: ObjId, index: i32) -> Result<(), DocError> {
         let mut doc = self.0.write().unwrap();
         let obj = am::ObjId::from(obj);
-        doc.join_block(obj, index.try_into().unwrap())?;
+        doc.join_block(obj, from_index(index)?)?;
         Ok(())
     }
 
@@ -575,8 +578,8 @@ impl Doc {
         doc.commit_with(options);
     }
 
-    pub fn rollback(&self) -> u64 {
-        self.0.write().unwrap().rollback() as u64
+    pub fn rollback(&self) -> i32 {
+        to_index(self.0.write().unwrap().rollback())
     }
 
     pub fn save(&self) -> Vec<u8> {

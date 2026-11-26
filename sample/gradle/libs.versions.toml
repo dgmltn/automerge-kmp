@@ -1,7 +1,7 @@
 [versions]
 kotlin = "2.4.20"
 agp = "9.4.1"
-automerge-kmp = "0.1.0"
+automerge-kmp = "0.2.0"
 iroh-kmp = "0.2.1"
 ktfmt = "0.27.0"
 detekt = "1.23.8"

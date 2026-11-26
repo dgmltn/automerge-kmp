@@ -1,26 +1,18 @@
 use automerge as am;
 
 use super::ObjId;
+use crate::index::to_index;
 
 pub enum Prop {
     Key { value: String },
-    Index { value: u64 },
+    Index { value: i32 },
 }
 
 impl From<am::Prop> for Prop {
     fn from(value: am::Prop) -> Self {
         match value {
             am::Prop::Map(k) => Prop::Key { value: k },
-            am::Prop::Seq(i) => Prop::Index { value: i as u64 },
-        }
-    }
-}
-
-impl From<Prop> for am::Prop {
-    fn from(value: Prop) -> Self {
-        match value {
-            Prop::Key { value } => am::Prop::Map(value),
-            Prop::Index { value } => am::Prop::Seq(value as usize),
+            am::Prop::Seq(i) => Prop::Index { value: to_index(i) },
         }
     }
 }

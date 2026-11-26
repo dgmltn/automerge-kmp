@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use automerge as am;
 
+use crate::index::to_index;
+
 use crate::{
     mark::Mark,
     obj_id::ObjId,
@@ -32,12 +34,12 @@ pub enum PatchAction {
     },
     Insert {
         obj: ObjId,
-        index: u64,
+        index: i32,
         values: Vec<Value>,
     },
     SpliceText {
         obj: ObjId,
-        index: u64,
+        index: i32,
         value: String,
         marks: HashMap<String, Value>,
     },
@@ -56,8 +58,8 @@ pub enum PatchAction {
     },
     DeleteSeq {
         obj: ObjId,
-        index: u64,
-        length: u64,
+        index: i32,
+        length: i32,
     },
     Marks {
         obj: ObjId,
@@ -76,13 +78,13 @@ impl PatchAction {
             am::PatchAction::PutSeq { index, value, .. } => PatchAction::Put {
                 obj: obj.into(),
                 prop: Prop::Index {
-                    value: index as u64,
+                    value: to_index(index),
                 },
                 value: value.into(),
             },
             am::PatchAction::Insert { index, values } => PatchAction::Insert {
                 obj: obj.into(),
-                index: index as u64,
+                index: to_index(index),
                 values: values
                     .into_iter()
                     .map(|(v, id, _conflict)| Value::from((v.clone(), id.clone())))
@@ -94,7 +96,7 @@ impl PatchAction {
                 marks,
             } => PatchAction::SpliceText {
                 obj: obj.into(),
-                index: index as u64,
+                index: to_index(index),
                 value: value.make_string(),
                 marks: convert_marks(marks),
             },
@@ -113,8 +115,8 @@ impl PatchAction {
             },
             am::PatchAction::DeleteSeq { index, length } => PatchAction::DeleteSeq {
                 obj: obj.into(),
-                index: index as u64,
-                length: length as u64,
+                index: to_index(index),
+                length: to_index(length),
             },
             am::PatchAction::Mark { marks } => PatchAction::Marks {
                 obj: obj.into(),

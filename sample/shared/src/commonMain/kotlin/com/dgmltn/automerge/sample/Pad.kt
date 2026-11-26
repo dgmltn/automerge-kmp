@@ -46,7 +46,7 @@ class Pad internal constructor(private val doc: Doc, private val textId: ObjId) 
         require(index in 0..now.length) { "Index $index is outside a text of length ${now.length}" }
         return when {
             now.isEmpty() -> byteArrayOf(IN_EMPTY_TEXT)
-            index < now.length -> byteArrayOf(ON_CHARACTER) + doc.cursor(textId, index.toULong())
+            index < now.length -> byteArrayOf(ON_CHARACTER) + doc.cursor(textId, index)
             else -> byteArrayOf(AFTER_CHARACTER) + doc.cursor(textId, now.lastCharacterStart())
         }
     }
@@ -56,7 +56,7 @@ class Pad internal constructor(private val doc: Doc, private val textId: ObjId) 
         val automergeCursor = cursor.copyOfRange(1, cursor.size)
         return when (cursor.first()) {
             IN_EMPTY_TEXT -> 0
-            ON_CHARACTER -> doc.cursorPosition(textId, automergeCursor).toInt()
+            ON_CHARACTER -> doc.cursorPosition(textId, automergeCursor)
             else -> afterCharacter(automergeCursor)
         }
     }
@@ -68,20 +68,20 @@ class Pad internal constructor(private val doc: Doc, private val textId: ObjId) 
      */
     private fun afterCharacter(cursor: ByteArray): Int {
         val position = doc.cursorPosition(textId, cursor)
-        if (!doc.cursor(textId, position).contentEquals(cursor)) return position.toInt()
+        if (!doc.cursor(textId, position).contentEquals(cursor)) return position
         // A character outside the Basic Multilingual Plane is two UTF-16 units.
-        val width = if (text[position.toInt()].isHighSurrogate()) 2 else 1
-        return position.toInt() + width
+        val width = if (text[position].isHighSurrogate()) 2 else 1
+        return position + width
     }
 
     override fun close() {
         doc.close()
     }
 
-    private fun String.lastCharacterStart(): ULong {
+    private fun String.lastCharacterStart(): Int {
         val pair =
             length >= 2 && this[length - 1].isLowSurrogate() && this[length - 2].isHighSurrogate()
-        return (if (pair) length - 2 else length - 1).toULong()
+        return if (pair) length - 2 else length - 1
     }
 
     private companion object {

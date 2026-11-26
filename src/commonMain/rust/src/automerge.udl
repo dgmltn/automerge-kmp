@@ -17,7 +17,7 @@ typedef bytes Cursor;
 [Enum]
 interface Position {
     Cursor ( Cursor position );
-    Index ( u64 position );
+    Index ( i32 position );
 };
 
 [Enum]
@@ -49,6 +49,7 @@ enum ObjType {
 [Error] enum DocError {
     "WrongObjectType",
     "Internal",
+    "NegativeIndex",
 };
 
 [Error]
@@ -87,7 +88,7 @@ dictionary KeyValue {
 [Enum]
 interface Prop {
     Key( string value );
-    Index( u64 value );
+    Index( i32 value );
 };
 
 enum ExpandMark {
@@ -98,8 +99,8 @@ enum ExpandMark {
 };
 
 dictionary Mark {
-    u64 start;
-    u64 end;
+    i32 start;
+    i32 end;
     string name;
     ScalarValue value;
 };
@@ -126,12 +127,12 @@ dictionary Patch {
 [Enum]
 interface PatchAction {
     Put( ObjId obj, Prop prop, Value value);
-    Insert( ObjId obj, u64 index, sequence<Value> values);
-    SpliceText( ObjId obj, u64 index, string value, record<string, Value> marks);
+    Insert( ObjId obj, i32 index, sequence<Value> values);
+    SpliceText( ObjId obj, i32 index, string value, record<string, Value> marks);
     Increment( ObjId obj, Prop prop, i64 value);
     Conflict( ObjId obj, Prop prop);
     DeleteMap( ObjId obj, string key);
-    DeleteSeq( ObjId obj, u64 index, u64 length);
+    DeleteSeq( ObjId obj, i32 index, i32 length);
     Marks( ObjId obj, sequence<Mark> marks );
 };
 
@@ -166,24 +167,24 @@ interface Doc {
     [Throws=DocError]
     ObjId put_object_in_map(ObjId obj, string key, ObjType obj_type);
     [Throws=DocError]
-    void put_in_list(ObjId obj, u64 index, ScalarValue value);
+    void put_in_list(ObjId obj, i32 index, ScalarValue value);
     [Throws=DocError]
-    ObjId put_object_in_list(ObjId obj, u64 index, ObjType obj_type);
+    ObjId put_object_in_list(ObjId obj, i32 index, ObjType obj_type);
     [Throws=DocError]
-    void insert_in_list(ObjId obj, u64 index, ScalarValue value);
+    void insert_in_list(ObjId obj, i32 index, ScalarValue value);
     [Throws=DocError]
-    ObjId insert_object_in_list(ObjId obj, u64 index, ObjType obj_type);
+    ObjId insert_object_in_list(ObjId obj, i32 index, ObjType obj_type);
 
     [Throws=DocError]
-    void splice_text(ObjId obj, u64 start, i64 delete, string chars);
+    void splice_text(ObjId obj, i32 start, i32 delete, string chars);
     [Throws=DocError]
     void update_text(ObjId obj, string chars);
 
     [Throws=DocError]
-    void splice(ObjId obj, u64 start, i64 delete, sequence<ScalarValue> values);
+    void splice(ObjId obj, i32 start, i32 delete, sequence<ScalarValue> values);
 
     [Throws=DocError]
-    void mark(ObjId obj, u64 start, u64 end, ExpandMark expand, string name, ScalarValue value);
+    void mark(ObjId obj, i32 start, i32 end, ExpandMark expand, string name, ScalarValue value);
     [Throws=DocError]
     sequence<Mark> marks(ObjId obj);
     [Throws=DocError]
@@ -192,39 +193,39 @@ interface Doc {
     sequence<Mark> marks_at_position(ObjId obj, Position position, sequence<ChangeHash> heads);
 
     [Throws=DocError]
-    ObjId split_block(ObjId obj, u32 index);
+    ObjId split_block(ObjId obj, i32 index);
     [Throws=DocError]
-    void join_block(ObjId obj, u32 index);
+    void join_block(ObjId obj, i32 index);
 
     [Throws=DocError]
     void delete_in_map(ObjId obj, string key);
     [Throws=DocError]
-    void delete_in_list(ObjId obj, u64 index);
+    void delete_in_list(ObjId obj, i32 index);
 
     [Throws=DocError]
     void increment_in_map(ObjId obj, string key, i64 by);
     [Throws=DocError]
-    void increment_in_list(ObjId obj, u64 index, i64 by);
+    void increment_in_list(ObjId obj, i32 index, i64 by);
 
     [Throws=DocError]
     Value? get_in_map(ObjId obj, string key);
     [Throws=DocError]
-    Value? get_in_list(ObjId obj, u64 index);
+    Value? get_in_list(ObjId obj, i32 index);
 
     [Throws=DocError]
     Value? get_at_in_map(ObjId obj, string key, sequence<ChangeHash> heads);
     [Throws=DocError]
-    Value? get_at_in_list(ObjId obj, u64 index, sequence<ChangeHash> heads);
+    Value? get_at_in_list(ObjId obj, i32 index, sequence<ChangeHash> heads);
 
     [Throws=DocError]
     sequence<Value> get_all_in_map(ObjId obj, string key);
     [Throws=DocError]
-    sequence<Value> get_all_in_list(ObjId obj, u64 index);
+    sequence<Value> get_all_in_list(ObjId obj, i32 index);
 
     [Throws=DocError]
     sequence<Value> get_all_at_in_map(ObjId obj, string key, sequence<ChangeHash> heads);
     [Throws=DocError]
-    sequence<Value> get_all_at_in_list(ObjId obj, u64 index, sequence<ChangeHash> heads);
+    sequence<Value> get_all_at_in_list(ObjId obj, i32 index, sequence<ChangeHash> heads);
 
     [Throws=DocError]
     string text(ObjId obj);
@@ -244,8 +245,8 @@ interface Doc {
     [Throws=DocError]
     sequence<Value> values_at(ObjId obj, sequence<ChangeHash> heads);
 
-    u64 length(ObjId obj);
-    u64 length_at(ObjId obj, sequence<ChangeHash> heads);
+    i32 length(ObjId obj);
+    i32 length_at(ObjId obj, sequence<ChangeHash> heads);
 
     ObjType object_type(ObjId obj);
 
@@ -262,7 +263,7 @@ interface Doc {
 
     void commit_with(string? msg, i64 time);
 
-    u64 rollback();
+    i32 rollback();
 
     bytes save();
 
@@ -286,12 +287,12 @@ interface Doc {
     sequence<Patch> apply_encoded_changes_with_patches(bytes changes);
 
     [Throws=DocError]
-    Cursor cursor(ObjId obj, u64 position);
+    Cursor cursor(ObjId obj, i32 position);
     [Throws=DocError]
-    Cursor cursor_at(ObjId obj, u64 position, sequence<ChangeHash> heads);
+    Cursor cursor_at(ObjId obj, i32 position, sequence<ChangeHash> heads);
     [Throws=DocError]
-    u64 cursor_position(ObjId obj, Cursor cursor);
+    i32 cursor_position(ObjId obj, Cursor cursor);
     [Throws=DocError]
-    u64 cursor_position_at(ObjId obj, Cursor cursor, sequence<ChangeHash> heads);
+    i32 cursor_position_at(ObjId obj, Cursor cursor, sequence<ChangeHash> heads);
 
 };

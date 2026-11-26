@@ -9,6 +9,7 @@ use change::Change;
 mod change_hash;
 use change_hash::ChangeHash;
 mod doc;
+mod index;
 use doc::{Doc, DocError, LoadError, ReceiveSyncError};
 mod mark;
 use mark::{ExpandMark, KeyValue, Mark};

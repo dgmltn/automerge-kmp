@@ -48,5 +48,15 @@
   so the document is built with it rather than having it set after the load.
 - `src/automerge.udl` and `src/doc.rs`: `rollback()` over `AutoCommit::rollback`, returning the
   number of operations dropped from the change not yet committed.
+- `src/automerge.udl`, `src/doc.rs`, `src/mark.rs`, `src/patches.rs`, `src/path.rs`, `src/cursor.rs`,
+  `src/lib.rs` and a new `src/index.rs`: every index, length and delete count is `i32` (was `u64`, `u32` for
+  `split_block` and `join_block`, and `i64` for the delete counts), so Kotlin sees `Int`, as its strings and lists
+  use, instead of `ULong`. They are the index arguments of the list, text, mark, block and cursor methods; the
+  returns of `length`, `length_at`, `cursor_position`, `cursor_position_at` and `rollback`; `Position.Index`,
+  `Prop.Index`, `Mark`'s `start` and `end`; and `PatchAction`'s `Insert`, `SpliceText` and `DeleteSeq`. A
+  negative index fails the call with a new `DocError::NegativeIndex` (upstream casts with `as usize`), and
+  `split_block`/`join_block` no longer panic on an index that doesn't fit. Values from automerge saturate at
+  `i32::MAX`, which no Kotlin `String` or list can exceed. The unused `From<Prop> for am::Prop` is removed rather
+  than given a lossy cast. `ScalarValue.Uint`, counters and timestamps stay 64-bit.
 
-Every other file (`build.rs`, `src/lib.rs` and the rest of `src/`) is byte-for-byte upstream's.
+Every other file (`build.rs` and the rest of `src/`) is byte-for-byte upstream's.

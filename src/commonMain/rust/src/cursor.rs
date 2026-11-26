@@ -6,7 +6,7 @@ pub struct Cursor(am::Cursor);
 
 pub enum Position {
     Cursor { position: Cursor },
-    Index { position: u64 },
+    Index { position: i32 },
 }
 
 impl From<Cursor> for am::Cursor {

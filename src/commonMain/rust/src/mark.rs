@@ -1,5 +1,6 @@
 use automerge as am;
 
+use crate::index::to_index;
 use crate::{ScalarValue, Value};
 
 pub enum ExpandMark {
@@ -21,8 +22,8 @@ impl From<ExpandMark> for am::marks::ExpandMark {
 }
 
 pub struct Mark {
-    pub start: u64,
-    pub end: u64,
+    pub start: i32,
+    pub end: i32,
     pub name: String,
     pub value: ScalarValue,
 }
@@ -30,8 +31,8 @@ pub struct Mark {
 impl<'a> From<&'a am::marks::Mark> for Mark {
     fn from(am_mark: &'a am::marks::Mark) -> Mark {
         Mark {
-            start: am_mark.start as u64,
-            end: am_mark.end as u64,
+            start: to_index(am_mark.start),
+            end: to_index(am_mark.end),
             name: am_mark.name().to_string(),
             value: am_mark.value().into(),
         }
@@ -44,7 +45,7 @@ pub struct KeyValue {
 }
 
 impl Mark {
-    pub fn from_markset(mark_set: am::marks::MarkSet, index: u64) -> Vec<Mark> {
+    pub fn from_markset(mark_set: am::marks::MarkSet, index: i32) -> Vec<Mark> {
         let mut result = Vec::new();
         for (key, value) in mark_set.iter() {
             let mark = Mark {

@@ -26,7 +26,7 @@ dependencyResolutionManagement {
 // build.gradle.kts of a KMP module
 kotlin {
     sourceSets {
-        commonMain.dependencies { implementation("com.dgmltn.automerge:automerge-kmp:0.1.0") }
+        commonMain.dependencies { implementation("com.dgmltn.automerge:automerge-kmp:0.2.0") }
     }
 }
 ```
@@ -41,13 +41,13 @@ Two copies of a document, edited apart and merged:
 ```kotlin
 Doc().use { doc1 ->
     val text = doc1.putObjectInMap(root(), "text", ObjType.TEXT)
-    doc1.spliceText(text, 0u, 0, "Hello world")
+    doc1.spliceText(text, 0, 0, "Hello world")
 
     // Another device loads its own copy from the saved bytes.
     Doc.load(doc1.save()).use { doc2 ->
         // Both copies are edited apart, at the same place.
-        doc2.spliceText(text, 5u, 0, " beautiful")
-        doc1.spliceText(text, 5u, 0, " there")
+        doc2.spliceText(text, 5, 0, " beautiful")
+        doc1.spliceText(text, 5, 0, " there")
 
         // Each merges the other's edits, and both end up with the same text.
         doc1.merge(doc2)
@@ -72,12 +72,15 @@ The API is that of the Automerge Rust crate (`Doc`, `ObjId`, `ChangeHash`, `Curs
   ```kotlin
   Doc().use { doc ->
       val text = doc.putObjectInMap(root(), "text", ObjType.TEXT)
-      doc.spliceText(text, 0u, 0, "a😀b")
+      doc.spliceText(text, 0, 0, "a😀b")
       // The emoji is two UTF-16 code units, so "b" is at index 3, as in a Kotlin String.
-      doc.spliceText(text, 3u, 1, "c")
+      doc.spliceText(text, 3, 1, "c")
       check(doc.text(text) == "a😀c")
   }
   ```
+- **Indices and lengths are `Int`**, as in Kotlin's own strings and lists. A negative index throws
+  `DocException.NegativeIndex`. A negative delete count in `spliceText` or `splice` deletes that many before the
+  index.
 - **`Doc.rollback()`** drops what was written since the last commit.
 - **Closing:** a `Doc` holds a Rust object: `close()` it (it is `AutoCloseable`) when done.
 - **Threads:** each call is atomic and safe from any thread, since the library locks the document for the call. A

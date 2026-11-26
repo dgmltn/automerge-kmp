@@ -8,7 +8,7 @@ class SmokeTest {
     fun aTextSplicedIn_readsBack() {
         val doc = Doc.newWithTextEncoding(TextEncoding.UTF16_CODE_UNIT)
         val body = doc.putObjectInMap(root(), "body", ObjType.TEXT)
-        doc.spliceText(body, 0u, 0, "hello")
+        doc.spliceText(body, 0, 0, "hello")
         doc.commitWith(null, 0)
 
         assertEquals("hello", doc.text(body))
